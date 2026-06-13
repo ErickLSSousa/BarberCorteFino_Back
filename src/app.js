@@ -3,12 +3,13 @@ const helmet = require("helmet");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const morgan = require("morgan");
-const env = require("./config/env");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const publicRoutes = require("./routes/publicRoutes");
 const errorHandler = require("./middlewares/errorHandler");
 const HttpError = require("./utils/httpError");
+
+
 
 const app = express();
 
