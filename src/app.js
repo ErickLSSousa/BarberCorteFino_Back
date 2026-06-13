@@ -19,16 +19,7 @@ app.use(helmet());
 app.use(express.json({ limit: "20kb" }));
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || env.CORS_ORIGINS.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new HttpError(403, "Origem nao autorizada pelo CORS."));
-    },
-  }),
-);
+app.use(cors());
 
 app.use(
   rateLimit({
