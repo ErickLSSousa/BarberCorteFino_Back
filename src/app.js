@@ -1,5 +1,6 @@
 const express = require("express");
 const helmet = require("helmet");
+const env = require("./config/env");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const morgan = require("morgan");
