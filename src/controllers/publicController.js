@@ -8,6 +8,9 @@ const {
   getActiveServicesByIds,
   hasConflict,
 } = require("../services/scheduleService");
+const { getAvailability } = require("../services/availabilityService");
+const { appointmentSchema, availabilityQuerySchema, clientSchema } = require("../schemas/appointmentSchemas");
+
 
 async function publicServices(req, res, next) {
   try {
@@ -41,89 +44,105 @@ async function publicBarbers(req, res, next) {
   }
 }
 
-async function createAppointment(req, res, next) {
+async function createAppointment(req, res) {
   try {
-    const payload = await buildAppointmentPayload(req.body);
+    const validated = appointmentSchema.parse(req.body);
 
-    const { data: appointment, error } = await supabase
-      .from("appointments")
-      .insert(payload.appointment)
-      .select("id, starts_at, ends_at, total_duration_minutes, total_price_cents, status")
+    // Dados do cliente (salvando direto no agendamento, pois tabela clients não existe)
+    const clientData = {
+      name: validated.client.name,
+      phone: validated.client.phone,
+      email: validated.client.email || null,
+    };
+
+    // Busca duração dos serviços
+    const servicesData = await getActiveServicesByIds(validated.service_ids);
+    const totalDuration = servicesData.totalDurationMinutes;
+
+    // Cria o agendamento
+    const { data: appointment, error: appError } = await supabase
+      .from('appointments')
+      .insert({
+        barber_id: validated.barber_id,
+        service_ids: validated.service_ids,
+        date: validated.date,
+        time: validated.time,
+        duration_minutes: totalDuration,
+        status: 'confirmed',
+        notes: validated.notes || null,
+        // Dados do cliente salvos diretamente nas colunas
+        client_name: clientData.name,
+        client_phone: clientData.phone,
+        client_email: clientData.email,
+      })
+      .select()
       .single();
 
-    if (error) {
-      if (error.code === "23P01") {
-        throw new HttpError(409, "Este horario conflita com outro agendamento do barbeiro.");
-      }
+    if (appError) throw appError;
 
-      throw new HttpError(500, "Falha ao salvar agendamento.");
-    }
-
-    const rows = payload.services.items.map((item) => ({
-      appointment_id: appointment.id,
-      ...item,
-    }));
-
-    const { error: servicesError } = await supabase.from("appointment_services").insert(rows);
-
-    if (servicesError) {
-      await supabase.from("appointments").delete().eq("id", appointment.id);
-      throw new HttpError(500, "Falha ao salvar servicos do agendamento.");
-    }
-
-    return res.status(201).json({
-      appointment: {
-        ...appointment,
-        services: payload.services.items,
-      },
+    res.status(201).json({
+      success: true,
+      message: "Agendamento criado com sucesso!",
+      appointment,
+      client: clientData
     });
+
   } catch (error) {
-    return next(error);
+    console.error('Erro ao criar agendamento:', error);
+    res.status(400).json({
+      error: "Erro ao criar agendamento",
+      message: error.message
+    });
   }
 }
 
-async function availability(req, res, next) {
+async function availability(req, res) {
   try {
-    await assertActiveBarber(req.query.barber_id);
-    const services = await getActiveServicesByIds(req.query.service_ids);
-    const slots = [];
-    const openHour = Number(env.BUSINESS_OPEN_TIME.slice(0, 2));
-    const openMinute = Number(env.BUSINESS_OPEN_TIME.slice(3, 5));
-    const closeHour = Number(env.BUSINESS_CLOSE_TIME.slice(0, 2));
-    const closeMinute = Number(env.BUSINESS_CLOSE_TIME.slice(3, 5));
+    const { barber_id, date, service_ids } = req.query;
 
-    const dayStart = parseLocalDateTime(`${req.query.date}T${String(openHour).padStart(2, "0")}:${String(openMinute).padStart(2, "0")}`);
-    const dayClose = parseLocalDateTime(`${req.query.date}T${String(closeHour).padStart(2, "0")}:${String(closeMinute).padStart(2, "0")}`);
-
-    if (!dayStart || !dayClose) {
-      throw new HttpError(400, "Data invalida.");
+    if (!barber_id || !date) {
+      return res.status(400).json({ error: "barber_id e date são obrigatórios" });
     }
 
-    if (assertInsideBusinessHours(dayStart, addMinutes(dayStart, 1), env)) {
-      return res.json({ slots: [] });
+    // Converte service_ids para array
+    let serviceIdsArray = [];
+    if (service_ids) {
+      serviceIdsArray = Array.isArray(service_ids) 
+        ? service_ids 
+        : service_ids.toString().split(',').map(id => id.trim());
     }
 
-    for (let cursor = dayStart; addMinutes(cursor, services.totalDurationMinutes) <= dayClose; cursor = addMinutes(cursor, 5)) {
-      if (cursor.getTime() <= Date.now()) {
-        continue;
-      }
+    console.log('📌 Requisição de disponibilidade:', { 
+      barber_id, 
+      date, 
+      service_ids: serviceIdsArray 
+    });
 
-      const end = addMinutes(cursor, services.totalDurationMinutes);
-      if (!(await hasConflict(req.query.barber_id, toIso(cursor), toIso(end)))) {
-        slots.push({
-          starts_at: `${req.query.date}T${String(cursor.getHours()).padStart(2, "0")}:${String(cursor.getMinutes()).padStart(2, "0")}`,
-          ends_at: `${req.query.date}T${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`,
-          total_duration_minutes: services.totalDurationMinutes,
-          total_price_cents: services.totalPriceCents,
-        });
-      }
-    }
+    const result = await getAvailability({ 
+      barber_id, 
+      date, 
+      service_ids: serviceIdsArray 
+    });
 
-    return res.json({ slots });
+    res.json({
+      success: true,
+      barber_id,
+      date,
+      total_duration_minutes: result.totalDurationMinutes || 0,
+      available_slots: result.availableSlots || [],
+      services: result.items || []
+    });
+
   } catch (error) {
-    return next(error);
+    console.error('Erro na availability:', error);
+    res.status(500).json({ 
+      error: "Erro interno do servidor",
+      message: error.message 
+    });
   }
 }
+
+
 
 module.exports = {
   availability,

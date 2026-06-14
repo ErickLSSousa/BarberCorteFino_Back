@@ -1,13 +1,21 @@
 const { z } = require("zod");
 
-const appointmentSchema = z.object({
-  customer_name: z.string().trim().min(2).max(120),
-  customer_phone: z.string().trim().min(8).max(30),
-  customer_email: z.string().trim().email().max(254),
-  barber_id: z.string().uuid(),
-  service_ids: z.array(z.string().uuid()).min(1).max(4),
-  starts_at: z.string().trim(),
+const clientSchema = z.object({
+  name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
+  phone: z.string().regex(/^\d{10,11}$/, "Telefone inválido (ex: 11987654321)"),
+  email: z.string().email("Email inválido").optional(),
 });
+
+const appointmentSchema = z.object({
+  client: clientSchema,
+  barber_id: z.string().uuid("ID do barbeiro inválido"),
+  service_ids: z.array(z.string().uuid()).min(1, "Selecione pelo menos um serviço"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
+  time: z.string().regex(/^\d{2}:\d{2}$/, "Hora inválida (HH:mm)"),
+  notes: z.string().max(200).optional(),
+}).strict();
+
+
 
 const availabilityQuerySchema = z.object({
   barber_id: z.string().uuid(),
@@ -22,4 +30,5 @@ const availabilityQuerySchema = z.object({
 module.exports = {
   appointmentSchema,
   availabilityQuerySchema,
+  clientSchema, 
 };
