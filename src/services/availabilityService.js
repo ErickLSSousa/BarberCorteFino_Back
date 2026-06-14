@@ -1,70 +1,98 @@
-// src/services/availabilityService.js
-const supabase = require('../config/supabase');
-const { getActiveServicesByIds } = require('./scheduleService');
+const supabase = require("../config/supabase");
+const { getActiveServicesByIds } = require("./scheduleService");
 
-async function getAvailability({ barber_id, date, service_ids }) {
-  try {
-    if (!barber_id || !date || !service_ids?.length) {
-      throw new Error('barber_id, date e service_ids são obrigatórios');
-    }
+async function getAvailability({
+  barber_id,
+  date,
+  service_ids,
+}) {
+  if (!barber_id) {
+    throw new Error("barber_id é obrigatório");
+  }
 
-    // Busca serviços
-    const servicesData = await getActiveServicesByIds(service_ids);
-    const totalDuration = servicesData.totalDurationMinutes || 0;
+  if (!date) {
+    throw new Error("date é obrigatório");
+  }
 
-    // Busca agendamentos existentes (versão segura)
-    const { data: appointments, error: appError } = await supabase
-      .from('appointments')
-      .select('*')                    // seleciona todas as colunas
-      .eq('barber_id', barber_id)
-      .eq('date', date)
-      .in('status', ['confirmed', 'pending']);
+  if (!service_ids?.length) {
+    throw new Error("service_ids é obrigatório");
+  }
 
-    if (appError) {
-      console.error('Erro ao buscar agendamentos:', appError);
-      // Continua mesmo se der erro (para não travar o fluxo)
-    }
+  const servicesData =
+    await getActiveServicesByIds(service_ids);
 
-    // Lógica de horários (09:00 ~ 19:00)
-    const startHour = 9;
-    const endHour = 19;
-    const interval = 30;
-    const availableSlots = [];
+  const totalDuration =
+    servicesData.totalDurationMinutes;
 
-    let current = startHour * 60;
+  const startOfDay = `${date}T00:00:00`;
+  const endOfDay = `${date}T23:59:59`;
 
-    while (current + totalDuration <= endHour * 60) {
-      const hours = Math.floor(current / 60);
-      const minutes = current % 60;
-      const slotTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  const { data: appointments, error } =
+    await supabase
+      .from("appointments")
+      .select("starts_at, ends_at")
+      .eq("barber_id", barber_id)
+      .in("status", ["scheduled", "confirmed"])
+      .gte("starts_at", startOfDay)
+      .lte("starts_at", endOfDay);
 
-      // Verificação simplificada por enquanto (evita erro de coluna)
-      const isBusy = appointments?.some(apt => {
-        const aptTime = apt.time || apt.appointment_time || apt.start_time || apt.hora;
-        if (!aptTime) return false;
-        const [aptH, aptM] = aptTime.split(':').map(Number);
-        const aptStart = aptH * 60 + aptM;
-        const aptEnd = aptStart + (apt.duration_minutes || 60);
-        return current < aptEnd && current + totalDuration > aptStart;
-      }) || false;
-
-      if (!isBusy) {
-        availableSlots.push(slotTime);
-      }
-
-      current += interval;
-    }
-
-    return {
-      availableSlots,
-      totalDurationMinutes: totalDuration,
-      items: servicesData.items || []
-    };
-
-  } catch (error) {
-    console.error('Erro em getAvailability:', error.message);
+  if (error) {
     throw error;
   }
+
+  const availableSlots = [];
+
+  const startBusiness = 9 * 60;
+  const endBusiness = 19 * 60;
+
+  for (
+    let current = startBusiness;
+    current + totalDuration <= endBusiness;
+    current += 30
+  ) {
+    const slotStart = new Date(
+      `${date}T00:00:00`
+    );
+
+    slotStart.setMinutes(current);
+
+    const slotEnd = new Date(
+      slotStart.getTime() +
+        totalDuration * 60000
+    );
+
+    const hasConflict =
+      appointments?.some((appointment) => {
+        const existingStart =
+          new Date(appointment.starts_at);
+
+        const existingEnd =
+          new Date(appointment.ends_at);
+
+        return (
+          slotStart < existingEnd &&
+          slotEnd > existingStart
+        );
+      }) || false;
+
+    if (!hasConflict) {
+      availableSlots.push(
+        slotStart.toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+      );
+    }
+  }
+
+  return {
+    availableSlots,
+    totalDurationMinutes: totalDuration,
+    items: servicesData.items,
+  };
 }
 
-module.exports = { getAvailability };
+module.exports = {
+  getAvailability,
+};
