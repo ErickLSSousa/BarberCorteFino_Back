@@ -33,8 +33,34 @@ async function deletePortfolioWork(id) {
   if (error) throw error;
 }
 
+async function togglePortfolioWork(id) {
+  const { data: current, error: findError } =
+    await supabase
+      .from("portfolio_works")
+      .select("active")
+      .eq("id", id)
+      .single();
+
+  if (findError) throw findError;
+
+  const { data, error } =
+    await supabase
+      .from("portfolio_works")
+      .update({
+        active: !current.active,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+  if (error) throw error;
+
+  return data;
+}
+
 module.exports = {
   getPortfolioWorks,
   createPortfolioWork,
   deletePortfolioWork,
+  togglePortfolioWork,
 };

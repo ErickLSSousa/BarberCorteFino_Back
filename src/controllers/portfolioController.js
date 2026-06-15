@@ -1,6 +1,24 @@
 const portfolioService = require("../services/portfolioService");
 const supabase = require("../config/supabase");
 
+async function listPortfolioAdmin(req, res, next) {
+  try {
+    const { data, error } = await supabase
+      .from("portfolio_works")
+      .select("*")
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (error) throw error;
+
+    return res.json({
+      works: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 async function uploadImage(req, res, next) {
   try {
@@ -82,9 +100,27 @@ async function removePortfolio(req, res, next) {
   }
 }
 
+async function togglePortfolio(req, res, next) {
+  try {
+
+    const work =
+      await portfolioService
+        .togglePortfolioWork(
+          req.params.id
+        );
+
+    return res.json(work);
+
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   listPortfolio,
   createPortfolio,
   removePortfolio,
-    uploadImage,
+  togglePortfolio,
+  uploadImage,
+  listPortfolioAdmin,
 };  
