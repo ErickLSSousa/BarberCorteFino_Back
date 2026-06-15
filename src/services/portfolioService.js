@@ -34,24 +34,36 @@ async function deletePortfolioWork(id) {
 }
 
 async function togglePortfolioWork(id) {
+
   const { data: current, error: findError } =
     await supabase
       .from("portfolio_works")
-      .select("active")
+      .select("*")
       .eq("id", id)
       .single();
 
+  console.log("REGISTRO ATUAL:");
+  console.log(current);
+
   if (findError) throw findError;
+
+  const newValue = !current.active;
+
+  console.log("NOVO VALOR:");
+  console.log(newValue);
 
   const { data, error } =
     await supabase
       .from("portfolio_works")
       .update({
-        active: !current.active,
+        active: newValue,
       })
       .eq("id", id)
-      .select()
+      .select("*")
       .single();
+
+  console.log("REGISTRO ATUALIZADO:");
+  console.log(data);
 
   if (error) throw error;
 

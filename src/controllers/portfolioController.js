@@ -14,7 +14,7 @@ async function listPortfolioAdmin(req, res, next) {
 
     return res.json({
       works: data,
-    });
+    }); 
   } catch (error) {
     next(error);
   }
@@ -104,10 +104,9 @@ async function togglePortfolio(req, res, next) {
   try {
 
     const work =
-      await portfolioService
-        .togglePortfolioWork(
-          req.params.id
-        );
+      await portfolioService.togglePortfolioWork(
+        req.params.id
+      );
 
     return res.json(work);
 
