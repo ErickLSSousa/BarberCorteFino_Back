@@ -9,6 +9,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const publicRoutes = require("./routes/publicRoutes");
 const errorHandler = require("./middlewares/errorHandler");
 const HttpError = require("./utils/httpError");
+const portfolioRoutes = require("./routes/portfolioRoutes");
 
 
 
@@ -47,6 +48,10 @@ app.get("/health", (req, res) => {
 
 app.use("/api", publicRoutes);
 app.use("/api/admin", adminRoutes);
+app.use(
+  "/api/portfolio",
+  portfolioRoutes
+);
 
 app.use((req, res, next) => {
   next(new HttpError(404, "Rota nao encontrada."));
