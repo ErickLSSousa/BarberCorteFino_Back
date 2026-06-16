@@ -142,5 +142,4 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
-src/config/env.js
 .env.example
