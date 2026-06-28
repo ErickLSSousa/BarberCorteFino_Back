@@ -5,6 +5,7 @@ API Node.js/Express para agendamento seguro de corte, barba, sobrancelha e tintu
 ## Recursos
 
 - Login de administrador com JWT e senha com hash.
+- Cadastro e login de cliente com JWT e senha com hash.
 - Cadastro administrativo de barbeiros.
 - Cadastro administrativo dos valores dos servicos.
 - Duracao validada no servidor:
@@ -43,7 +44,10 @@ npm start
 ## Rotas principais
 
 - `GET /health`
-- `POST /api/auth/login`
+- `POST /api/auth/login` (login de administrador legado)
+- `POST /api/auth/admin/login`
+- `POST /api/auth/client/register`
+- `POST /api/auth/client/login`
 - `GET /api/services`
 - `GET /api/barbers`
 - `GET /api/availability?barber_id=UUID&date=YYYY-MM-DD&service_ids=UUID,UUID`
@@ -52,4 +56,6 @@ npm start
 - `POST /api/admin/barbers`
 - `POST /api/admin/services`
 
-Rotas `/api/admin/*` exigem `Authorization: Bearer TOKEN`.
+Rotas `/api/admin/*` exigem `Authorization: Bearer TOKEN` de administrador.
+
+Tokens de cliente retornam `role: "client"` e podem ser validados no backend com o middleware `requireClient`.

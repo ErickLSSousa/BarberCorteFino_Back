@@ -10,6 +10,18 @@ create table if not exists public.admins (
   created_at timestamptz not null default now()
 );
 
+
+create table if not exists public.clients (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) between 2 and 120),
+  email text not null unique,
+  phone text not null,
+  password_hash text not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.barbers (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(name) between 2 and 120),
@@ -78,6 +90,7 @@ begin
 end $$;
 
 alter table public.admins enable row level security;
+alter table public.clients enable row level security;
 alter table public.barbers enable row level security;
 alter table public.services enable row level security;
 alter table public.appointments enable row level security;
